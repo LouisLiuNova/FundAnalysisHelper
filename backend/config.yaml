@@ -1,0 +1,25 @@
+llm:
+  base_url: "https://api.deepseek.com/v1"
+  api_key: "${LLM_API_KEY}"
+  analyst_model: "deepseek-v4-pro[1m]"
+  debater_model: "deepseek-v4-pro[1m]"
+  report_model: "deepseek-v4-pro[1m]"
+  temperature: 0.3
+  max_tokens: 16384
+
+mongodb:
+  uri: "mongodb://localhost:27017"
+  database: "fund_analysis"
+
+redis:
+  host: "localhost"
+  port: 6379
+  db: 0
+  password: ""
+
+tushare:
+  token: "${TUSHARE_TOKEN}"
+
+server:
+  host: "0.0.0.0"
+  port: 8000
