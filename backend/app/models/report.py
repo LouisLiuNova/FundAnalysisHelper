@@ -23,6 +23,7 @@ class DataSource(BaseModel):
 
 
 class Report(BaseModel):
+    analysis_id: str = ""
     fund_code: str
     fund_name: str
     timestamp: datetime = Field(default_factory=datetime.utcnow)
