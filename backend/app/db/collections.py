@@ -1,4 +1,5 @@
 from motor.motor_asyncio import AsyncIOMotorCollection
+
 from app.db.client import get_db
 
 COLLECTION_REPORTS = "fund_analysis_reports"

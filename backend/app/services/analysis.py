@@ -1,13 +1,17 @@
-import uuid
 import asyncio
-from datetime import datetime, timezone
-from app.models.analysis import AnalysisRequest, AnalysisStatus, AnalysisProgress
-from app.models.report import Report, ReportSection, DebateRecord, DataSource
+import uuid
+from datetime import UTC, datetime
+from typing import TYPE_CHECKING
+
 from app.datasource.cache import RedisCache
 from app.datasource.tushare import TushareAdapter
 from app.db.client import init_db
 from app.graph.workflow import compile_workflow, set_datasource
-from app.graph.state import GraphState
+from app.models.analysis import AnalysisProgress, AnalysisRequest, AnalysisStatus
+from app.models.report import DebateRecord, Report, ReportSection
+
+if TYPE_CHECKING:
+    from app.graph.state import GraphState
 
 
 class AnalysisService:
@@ -29,7 +33,7 @@ class AnalysisService:
         self._cache = None
         self._datasource = None
 
-    async def _ensure_initialized(self):
+    async def _ensure_initialized(self) -> None:
         if self._initialized:
             return
         self._db = await init_db(self._mongodb_uri, self._db_name)
@@ -38,30 +42,32 @@ class AnalysisService:
         set_datasource(self._datasource)
         self._initialized = True
 
-    def _reports_col(self):
+    def _reports_col(self) -> object:
         return self._db["fund_analysis_reports"]
 
-    def _logs_col(self):
+    def _logs_col(self) -> object:
         return self._db["analysis_logs"]
 
     async def start_analysis(self, request: AnalysisRequest) -> str:
         await self._ensure_initialized()
         analysis_id = str(uuid.uuid4())[:8]
 
-        await self._logs_col().insert_one({
-            "analysis_id": analysis_id,
-            "status": AnalysisStatus.PENDING.value,
-            "current_step": "",
-            "completed_steps": [],
-            "total_steps": 12,
-            "error": None,
-            "created_at": datetime.now(timezone.utc),
-        })
+        await self._logs_col().insert_one(
+            {
+                "analysis_id": analysis_id,
+                "status": AnalysisStatus.PENDING.value,
+                "current_step": "",
+                "completed_steps": [],
+                "total_steps": 12,
+                "error": None,
+                "created_at": datetime.now(UTC),
+            }
+        )
 
         asyncio.create_task(self._run_analysis(analysis_id, request))
         return analysis_id
 
-    async def _run_analysis(self, analysis_id: str, request: AnalysisRequest):
+    async def _run_analysis(self, analysis_id: str, request: AnalysisRequest) -> None:
         try:
             await self._update_status(analysis_id, AnalysisStatus.FETCHING_DATA, "数据获取", [])
             graph = compile_workflow()
@@ -73,20 +79,38 @@ class AnalysisService:
             result = await graph.ainvoke(initial_state)
 
             if result.get("error"):
-                await self._update_status(analysis_id, AnalysisStatus.FAILED, "", [], error=result["error"])
+                await self._update_status(
+                    analysis_id,
+                    AnalysisStatus.FAILED,
+                    "",
+                    [],
+                    error=result["error"],
+                )
                 return
 
-            await self._update_status(analysis_id, AnalysisStatus.WRITING_REPORT, "报告编写", [
-                "数据获取", "基本面分析", "技术面分析", "行业分析",
-                "经理分析", "情绪分析", "新闻分析", "宏观分析",
-                "辩论", "CIO裁决",
-            ])
+            await self._update_status(
+                analysis_id,
+                AnalysisStatus.WRITING_REPORT,
+                "报告编写",
+                [
+                    "数据获取",
+                    "基本面分析",
+                    "技术面分析",
+                    "行业分析",
+                    "经理分析",
+                    "情绪分析",
+                    "新闻分析",
+                    "宏观分析",
+                    "辩论",
+                    "CIO裁决",
+                ],
+            )
 
             debate = result.get("debate_record", {})
             report = Report(
                 fund_code=request.fund_code,
                 fund_name=result.get("fund_name", ""),
-                timestamp=datetime.now(timezone.utc),
+                timestamp=datetime.now(UTC),
                 sections={
                     name: ReportSection(title=name, content=content, order=i)
                     for i, (name, content) in enumerate(result.get("analyst_reports", {}).items())
@@ -103,23 +127,45 @@ class AnalysisService:
 
             await self._reports_col().insert_one(report.model_dump())
 
-            await self._update_status(analysis_id, AnalysisStatus.COMPLETED, "完成", [
-                "数据获取", "基本面分析", "技术面分析", "行业分析",
-                "经理分析", "情绪分析", "新闻分析", "宏观分析",
-                "辩论", "CIO裁决", "报告编写",
-            ])
+            await self._update_status(
+                analysis_id,
+                AnalysisStatus.COMPLETED,
+                "完成",
+                [
+                    "数据获取",
+                    "基本面分析",
+                    "技术面分析",
+                    "行业分析",
+                    "经理分析",
+                    "情绪分析",
+                    "新闻分析",
+                    "宏观分析",
+                    "辩论",
+                    "CIO裁决",
+                    "报告编写",
+                ],
+            )
         except Exception as e:
             await self._update_status(analysis_id, AnalysisStatus.FAILED, "", [], error=str(e))
 
-    async def _update_status(self, analysis_id, status, current_step, completed_steps, error=None):
+    async def _update_status(
+        self,
+        analysis_id: str,
+        status: AnalysisStatus,
+        current_step: str,
+        completed_steps: list[str],
+        error: str | None = None,
+    ) -> None:
         await self._logs_col().update_one(
             {"analysis_id": analysis_id},
-            {"$set": {
-                "status": status.value,
-                "current_step": current_step,
-                "completed_steps": completed_steps,
-                "error": error,
-            }},
+            {
+                "$set": {
+                    "status": status.value,
+                    "current_step": current_step,
+                    "completed_steps": completed_steps,
+                    "error": error,
+                }
+            },
             upsert=True,
         )
 

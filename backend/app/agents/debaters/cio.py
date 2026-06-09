@@ -30,7 +30,7 @@ class CIODecider(BaseAgent):
         for i, arg in enumerate(bull_args):
             bear_arg = bear_args[i] if i < len(bear_args) else "..."
             debate_lines.append(
-                f"**看多方 第{i+1}轮:** {arg}\n\n**看空方 第{i+1}轮:** {bear_arg}"
+                f"**看多方 第{i + 1}轮:** {arg}\n\n**看空方 第{i + 1}轮:** {bear_arg}"
             )
         debate_text = "\n\n".join(debate_lines)
 

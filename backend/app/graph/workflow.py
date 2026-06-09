@@ -1,10 +1,25 @@
-from langgraph.graph import StateGraph, START, END
+from __future__ import annotations
+
+from typing import TYPE_CHECKING
+
+from langgraph.graph import END, START, StateGraph
+
 from app.graph.state import GraphState
 
+if TYPE_CHECKING:
+    from langgraph.graph.state import CompiledStateGraph
+
+    from app.core.config import Config
+    from app.datasource.base import BaseDataSource
 
 ANALYST_NAMES = [
-    "fundamental", "technical", "sector",
-    "manager", "sentiment", "news", "macro",
+    "fundamental",
+    "technical",
+    "sector",
+    "manager",
+    "sentiment",
+    "news",
+    "macro",
 ]
 
 
@@ -31,12 +46,12 @@ async def fetch_data_node(state: GraphState) -> dict:
 
 async def analyst_node(state: GraphState, analyst_type: str) -> dict:
     from app.agents.analysts.fund import FundamentalAnalyst
-    from app.agents.analysts.technical import TechnicalAnalyst
-    from app.agents.analysts.sector import SectorAnalyst
-    from app.agents.analysts.manager import ManagerAnalyst
-    from app.agents.analysts.sentiment import SentimentAnalyst
-    from app.agents.analysts.news import NewsAnalyst
     from app.agents.analysts.macro import MacroAnalyst
+    from app.agents.analysts.manager import ManagerAnalyst
+    from app.agents.analysts.news import NewsAnalyst
+    from app.agents.analysts.sector import SectorAnalyst
+    from app.agents.analysts.sentiment import SentimentAnalyst
+    from app.agents.analysts.technical import TechnicalAnalyst
 
     config = get_config()
     classes = {
@@ -87,9 +102,8 @@ async def bull_node(state: GraphState) -> dict:
     bull_history.append(argument)
 
     consensus = False
-    if bear_history and round_num > 1:
-        if "同意" in argument or "认可" in argument:
-            consensus = True
+    if bear_history and round_num > 1 and ("同意" in argument or "认可" in argument):
+        consensus = True
 
     return {
         "debate_record": {"bull": bull_history, "bear": bear_history},
@@ -173,7 +187,7 @@ def should_continue_debate(state: GraphState) -> str:
     return "debate"
 
 
-def compile_workflow():
+def compile_workflow() -> CompiledStateGraph:
     builder = StateGraph(GraphState)
 
     builder.add_node("fetch_data", fetch_data_node)
@@ -183,8 +197,10 @@ def compile_workflow():
     builder.add_node("reporter", reporter_node)
 
     for name in ANALYST_NAMES:
-        async def make_analyst(state, name=name):
+
+        async def make_analyst(state: GraphState, name: str = name) -> dict:
             return await analyst_node(state, name)
+
         builder.add_node(f"analyst_{name}", make_analyst)
 
     builder.add_edge(START, "fetch_data")
@@ -214,25 +230,26 @@ _config = None
 _datasource = None
 
 
-def set_config(config):
+def set_config(config: Config) -> None:
     global _config
     _config = config
 
 
-def get_config():
+def get_config() -> Config:
     global _config
     if _config is None:
         from app.core.config import load_config
+
         _config = load_config()
     return _config
 
 
-def set_datasource(ds):
+def set_datasource(ds: BaseDataSource) -> None:
     global _datasource
     _datasource = ds
 
 
-def get_datasource():
+def get_datasource() -> BaseDataSource:
     global _datasource
     if _datasource is None:
         raise RuntimeError("Datasource not initialized. Call set_datasource() first.")

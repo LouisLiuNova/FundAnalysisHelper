@@ -1,5 +1,5 @@
+from langchain_core.messages import HumanMessage, SystemMessage
 from langchain_openai import ChatOpenAI
-from langchain_core.messages import SystemMessage, HumanMessage
 
 
 class BaseAgent:
@@ -24,12 +24,10 @@ class BaseAgent:
         )
 
     async def invoke(self, user_message: str, context: dict | None = None) -> str:
-        messages = [SystemMessage(content=self.system_prompt)]
+        messages: list[SystemMessage | HumanMessage] = [SystemMessage(content=self.system_prompt)]
 
         if context:
-            ctx_str = "\n\n## 数据上下文\n" + "\n".join(
-                f"- {k}: {v}" for k, v in context.items()
-            )
+            ctx_str = "\n\n## 数据上下文\n" + "\n".join(f"- {k}: {v}" for k, v in context.items())
             user_message = user_message + ctx_str
 
         messages.append(HumanMessage(content=user_message))

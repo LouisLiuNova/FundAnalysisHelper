@@ -1,5 +1,6 @@
+from datetime import UTC, datetime
 from enum import StrEnum
-from datetime import datetime, timezone
+
 from pydantic import BaseModel, Field
 
 
@@ -42,4 +43,4 @@ class AnalysisProgress(BaseModel):
 class AnalysisResponse(BaseModel):
     analysis_id: str
     status: AnalysisStatus
-    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+    created_at: datetime = Field(default_factory=lambda: datetime.now(UTC))

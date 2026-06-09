@@ -23,18 +23,17 @@ class Reporter(BaseAgent):
         risk_level: str,
     ) -> str:
         reports_text = "\n\n---\n\n".join(
-            f"### {name} 分析报告\n{content}"
-            for name, content in analyst_reports.items()
+            f"### {name} 分析报告\n{content}" for name, content in analyst_reports.items()
         )
         bull_args = debate_record.get("bull", [])
         bear_args = debate_record.get("bear", [])
 
         debate_parts = []
-        for i, (b, br) in enumerate(zip(bull_args, bear_args)):
-            debate_parts.append(f"**第{i+1}轮:**\n- 看多: {b}\n- 看空: {br}")
+        for i, (b, br) in enumerate(zip(bull_args, bear_args, strict=False)):
+            debate_parts.append(f"**第{i + 1}轮:**\n- 看多: {b}\n- 看空: {br}")
         if len(bull_args) > len(bear_args):
             for i in range(len(bear_args), len(bull_args)):
-                debate_parts.append(f"**第{i+1}轮 看多:** {bull_args[i]}")
+                debate_parts.append(f"**第{i + 1}轮 看多:** {bull_args[i]}")
         debate_text = "\n\n".join(debate_parts)
 
         prompt = REPORTER_PROMPT.replace("{fund_name}", fund_name)

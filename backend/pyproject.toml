@@ -22,7 +22,64 @@ dependencies = [
 dev = [
     "pytest>=8.0.0",
     "pytest-asyncio>=0.24.0",
+    "ruff>=0.11.0",
 ]
+
+[tool.ruff]
+target-version = "py312"
+line-length = 100
+
+[tool.ruff.lint]
+select = [
+    # pyflakes — basic error detection
+    "F",
+    # pycodestyle — style issues
+    "E",
+    "W",
+    # isort — import ordering
+    "I",
+    # pyupgrade — modern Python syntax (type syntax, generics, etc.)
+    "UP",
+    # flake8-type-checking — proper type import handling
+    "TCH",
+    # flake8-annotations — enforce type annotations
+    "ANN",
+    # flake8-bugbear — common bug detection
+    "B",
+    # flake8-simplify — simplify code
+    "SIM",
+    # flake8-return — check return statements
+    "RET",
+    # flake8-comprehensions — improve list/dict/set comprehensions
+    "C4",
+    # flake8-no-pep420 — ensure __init__.py files
+    "INP",
+    # eradicate — find commented-out code
+    "ERA",
+    # pygrep-hooks — detect common mistakes
+    "PGH",
+]
+ignore = [
+    # Allow missing type annotations for *args and **kwargs
+    "ANN002",
+    "ANN003",
+    # Allow missing return type for __init__
+    "ANN204",
+    # Don't enforce docstrings (handled separately)
+    "D",
+]
+
+[tool.ruff.lint.isort]
+known-first-party = ["app"]
+
+[tool.ruff.lint.flake8-annotations]
+# Allow omission of return type for dunder methods other than __init__
+allow-star-arg-any = true
+
+[tool.ruff.format]
+quote-style = "double"
+indent-style = "space"
+skip-magic-trailing-comma = false
 
 [tool.pytest.ini_options]
 asyncio_mode = "auto"

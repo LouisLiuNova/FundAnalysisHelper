@@ -1,5 +1,6 @@
 from functools import lru_cache
-from app.core.config import load_config, Config
+
+from app.core.config import Config, load_config
 from app.services.analysis import AnalysisService
 
 _service: AnalysisService | None = None

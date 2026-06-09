@@ -1,8 +1,11 @@
 import json
+from collections.abc import Callable
+
 import tushare as ts
+
 from app.datasource.base import BaseDataSource
 from app.datasource.cache import RedisCache
-from app.models.fund import FundBasicInfo, NAVRecord, ManagerInfo, Portfolio
+from app.models.fund import FundBasicInfo, ManagerInfo, NAVRecord, Portfolio
 
 
 class TushareAdapter(BaseDataSource):
@@ -11,7 +14,9 @@ class TushareAdapter(BaseDataSource):
         self._pro = ts.pro_api()
         self._cache = cache
 
-    async def _cached(self, key: str, fetcher, ttl: int = 3600) -> dict | list:
+    async def _cached(
+        self, key: str, fetcher: Callable[[], object], ttl: int = 3600
+    ) -> dict | list:
         cached = await self._cache.get(key)
         if cached is not None:
             return cached
@@ -20,15 +25,17 @@ class TushareAdapter(BaseDataSource):
         return data
 
     async def get_fund_nav(self, code: str, days: int = 90) -> list[NAVRecord]:
-        def fetch():
+        def fetch() -> list[dict]:
             df = self._pro.fund_nav(ts_code=code, limit=days)
-            records = []
+            records: list[dict] = []
             for _, row in df.iterrows():
-                records.append({
-                    "date": row["nav_date"],
-                    "nav": float(row["unit_nav"]),
-                    "acc_nav": float(row["accum_nav"]),
-                })
+                records.append(
+                    {
+                        "date": row["nav_date"],
+                        "nav": float(row["unit_nav"]),
+                        "acc_nav": float(row["accum_nav"]),
+                    }
+                )
             return records
 
         key = f"nav:{code}:{days}d"
@@ -36,7 +43,7 @@ class TushareAdapter(BaseDataSource):
         return [NAVRecord(**r) for r in data]
 
     async def get_fund_basic(self, code: str) -> FundBasicInfo:
-        def fetch():
+        def fetch() -> dict:
             df = self._pro.fund_basic(ts_code=code)
             if df.empty:
                 raise ValueError(f"未找到基金: {code}")
@@ -56,7 +63,7 @@ class TushareAdapter(BaseDataSource):
         return FundBasicInfo(**data)
 
     async def get_fund_manager(self, code: str) -> ManagerInfo:
-        def fetch():
+        def fetch() -> dict:
             df = self._pro.fund_manager(ts_code=code)
             if df.empty:
                 raise ValueError(f"未找到基金经理: {code}")
@@ -76,10 +83,17 @@ class TushareAdapter(BaseDataSource):
         return ManagerInfo(**data)
 
     async def get_fund_portfolio(self, code: str) -> Portfolio:
-        def fetch():
+        def fetch() -> dict:
+            empty = {
+                "fund_code": code,
+                "report_date": "",
+                "top_10_stocks": [],
+                "sector_allocation": {},
+                "asset_allocation": {},
+            }
             df = self._pro.fund_portfolio(ts_code=code)
             if df.empty:
-                return {"fund_code": code, "report_date": "", "top_10_stocks": [], "sector_allocation": {}, "asset_allocation": {}}
+                return empty
             return {"fund_code": code, "report_date": ""}
 
         key = f"portfolio:{code}"
@@ -95,7 +109,7 @@ class TushareAdapter(BaseDataSource):
         if indicator not in indicators:
             raise ValueError(f"不支持的宏观指标: {indicator}")
 
-        def fetch():
+        def fetch() -> list[dict]:
             df = indicators[indicator]()
             return json.loads(df.to_json(orient="records"))
 

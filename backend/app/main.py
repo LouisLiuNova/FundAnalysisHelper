@@ -1,13 +1,16 @@
+from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
+
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+
+from app.api.deps import get_analysis_service, get_config
 from app.api.routes import analysis, fund
-from app.api.deps import get_config, get_analysis_service
 from app.graph.workflow import set_config
 
 
 @asynccontextmanager
-async def lifespan(app: FastAPI):
+async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     config = get_config()
     set_config(config)
     get_analysis_service()  # pre-init
@@ -33,5 +36,5 @@ app.include_router(fund.router)
 
 
 @app.get("/health")
-async def health():
+async def health() -> dict:
     return {"status": "ok"}
