@@ -166,6 +166,42 @@ class CompositeDataSource(BaseDataSource):
 
         return []
 
+    async def get_fund_portfolio_industry_allocation(self, code: str) -> list[dict]:
+        # AKshare primary.
+        try:
+            result = await self._primary.get_fund_portfolio_industry_allocation(code)
+            if result:
+                return result
+        except Exception as exc:
+            logger.debug("AKshare industry allocation failed for %s: %s", code, exc)
+
+        # Tushare fallback (always returns empty).
+        if self._fallback is not None:
+            try:
+                return await self._fallback.get_fund_portfolio_industry_allocation(code)
+            except Exception as exc:
+                logger.debug("Tushare industry allocation fallback failed for %s: %s", code, exc)
+
+        return []
+
+    async def get_fund_announcements(self, code: str, limit: int = 5) -> list[dict]:
+        # AKshare primary.
+        try:
+            result = await self._primary.get_fund_announcements(code, limit=limit)
+            if result:
+                return result
+        except Exception as exc:
+            logger.debug("AKshare announcements failed for %s: %s", code, exc)
+
+        # Tushare fallback (always returns empty).
+        if self._fallback is not None:
+            try:
+                return await self._fallback.get_fund_announcements(code, limit=limit)
+            except Exception as exc:
+                logger.debug("Tushare announcements fallback failed for %s: %s", code, exc)
+
+        return []
+
     async def close(self) -> None:
         await self._primary.close()
         if self._fallback is not None:

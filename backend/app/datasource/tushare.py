@@ -116,5 +116,17 @@ class TushareAdapter(BaseDataSource):
         key = f"macro:{indicator}"
         return await self._cached(key, fetch, ttl=86400)
 
+    async def get_fund_portfolio_industry_allocation(self, code: str) -> list[dict]:
+        # Tushare does not provide a corresponding API for industry allocation.
+        logger = __import__("logging").getLogger(__name__)
+        logger.debug("Tushare: get_fund_portfolio_industry_allocation not available for %s", code)
+        return []
+
+    async def get_fund_announcements(self, code: str, limit: int = 5) -> list[dict]:
+        # Tushare does not provide a corresponding API for fund announcements.
+        logger = __import__("logging").getLogger(__name__)
+        logger.debug("Tushare: get_fund_announcements not available for %s", code)
+        return []
+
     async def close(self) -> None:
         await self._cache.close()

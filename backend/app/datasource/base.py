@@ -18,3 +18,9 @@ class BaseDataSource(ABC):
 
     @abstractmethod
     async def get_macro(self, indicator: str) -> dict: ...
+
+    @abstractmethod
+    async def get_fund_portfolio_industry_allocation(self, code: str) -> list[dict]: ...
+
+    @abstractmethod
+    async def get_fund_announcements(self, code: str, limit: int = 5) -> list[dict]: ...

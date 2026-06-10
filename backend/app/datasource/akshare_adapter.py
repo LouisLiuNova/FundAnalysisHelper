@@ -245,6 +245,34 @@ class AKshareAdapter(BaseDataSource):
 
         return await self._cached(cache_key, fetch, ttl=86400)
 
+    async def get_fund_portfolio_industry_allocation(self, code: str) -> list[dict]:
+        code6 = _normalise_code(code)
+
+        def fetch() -> list[dict]:
+            from datetime import datetime
+
+            current_year = str(datetime.now().year)
+            df = ak.fund_portfolio_industry_allocation_em(symbol=code6, date=current_year)
+            if df is None or df.empty:
+                return []
+            return df.to_dict(orient="records")
+
+        key = f"ak:industry_allocation:{code}"
+        return await self._cached(key, fetch, ttl=86400)
+
+    async def get_fund_announcements(self, code: str, limit: int = 5) -> list[dict]:
+        code6 = _normalise_code(code)
+
+        def fetch() -> list[dict]:
+            df = ak.fund_announcement_report_em(symbol=code6)
+            if df is None or df.empty:
+                return []
+            records = df.head(limit).to_dict(orient="records")
+            return records
+
+        key = f"ak:announcements:{code}:{limit}"
+        return await self._cached(key, fetch, ttl=3600)
+
     async def close(self) -> None:
         if self._cache is not None:
             await self._cache.close()
