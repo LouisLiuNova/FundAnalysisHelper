@@ -3,8 +3,8 @@ import uuid
 from datetime import UTC, datetime
 from typing import TYPE_CHECKING
 
+from app.datasource import create_datasource
 from app.datasource.cache import RedisCache
-from app.datasource.tushare import TushareAdapter
 from app.db.client import init_db
 from app.graph.workflow import compile_workflow, set_datasource
 from app.models.analysis import AnalysisProgress, AnalysisRequest, AnalysisStatus
@@ -22,12 +22,14 @@ class AnalysisService:
         redis_host: str,
         redis_port: int,
         tushare_token: str,
+        datasource_type: str = "composite",
     ):
         self._mongodb_uri = mongodb_uri
         self._db_name = db_name
         self._redis_host = redis_host
         self._redis_port = redis_port
         self._tushare_token = tushare_token
+        self._datasource_type = datasource_type
         self._initialized = False
         self._db = None
         self._cache = None
@@ -38,7 +40,11 @@ class AnalysisService:
             return
         self._db = await init_db(self._mongodb_uri, self._db_name)
         self._cache = RedisCache(host=self._redis_host, port=self._redis_port)
-        self._datasource = TushareAdapter(token=self._tushare_token, cache=self._cache)
+        self._datasource = create_datasource(
+            source_type=self._datasource_type,
+            tushare_token=self._tushare_token,
+            cache=self._cache,
+        )
         set_datasource(self._datasource)
         self._initialized = True
 

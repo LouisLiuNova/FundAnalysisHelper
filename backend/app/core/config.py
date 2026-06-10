@@ -40,6 +40,11 @@ class TushareConfig:
 
 
 @dataclass
+class DataSourceConfig:
+    type: str = "tushare"  # "tushare" | "akshare"
+
+
+@dataclass
 class ServerConfig:
     host: str = "0.0.0.0"
     port: int = 8000
@@ -51,6 +56,7 @@ class Config:
     mongodb: MongoDBConfig
     redis: RedisConfig
     tushare: TushareConfig
+    datasource: DataSourceConfig
     server: ServerConfig
 
 
@@ -91,6 +97,9 @@ def load_config(path: str | None = None) -> Config:
             password=raw["redis"].get("password", ""),
         ),
         tushare=TushareConfig(token=_resolve_env(raw["tushare"]["token"])),
+        datasource=DataSourceConfig(
+            type=raw.get("datasource", {}).get("type", "tushare"),
+        ),
         server=ServerConfig(
             host=raw.get("server", {}).get("host", "0.0.0.0"),
             port=raw.get("server", {}).get("port", 8000),

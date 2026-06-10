@@ -8,7 +8,7 @@ from app.services.analysis import AnalysisService
 def analysis_service():
     with patch("app.services.analysis.init_db"), \
          patch("app.services.analysis.RedisCache"), \
-         patch("app.services.analysis.TushareAdapter"), \
+         patch("app.services.analysis.create_datasource"), \
          patch("app.services.analysis.set_datasource"):
         service = AnalysisService(
             mongodb_uri="mongodb://localhost:27017",
@@ -16,6 +16,7 @@ def analysis_service():
             redis_host="localhost",
             redis_port=6379,
             tushare_token="test-token",
+            datasource_type="composite",
         )
         service._db = AsyncMock()
         mock_coll = AsyncMock()

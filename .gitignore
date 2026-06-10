@@ -221,3 +221,4 @@ docs
 .claude
 .python-version
 uv.lock
+.superpowers

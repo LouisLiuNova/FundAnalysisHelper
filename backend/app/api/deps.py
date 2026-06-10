@@ -21,5 +21,6 @@ def get_analysis_service() -> AnalysisService:
             redis_host=config.redis.host,
             redis_port=config.redis.port,
             tushare_token=config.tushare.token,
+            datasource_type=config.datasource.type,
         )
     return _service

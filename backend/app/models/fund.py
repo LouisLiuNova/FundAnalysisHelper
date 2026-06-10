@@ -29,9 +29,17 @@ class ManagerInfo(BaseModel):
     style: str | None = None
 
 
+class StockHolding(BaseModel):
+    stock_code: str
+    stock_name: str
+    weight_pct: float = 0.0
+    shares: float | None = None
+    market_value: float | None = None
+
+
 class Portfolio(BaseModel):
     fund_code: str
     report_date: str
-    top_10_stocks: list[dict[str, float]] = Field(default_factory=list)
+    top_10_stocks: list[StockHolding] = Field(default_factory=list)
     sector_allocation: dict[str, float] = Field(default_factory=dict)
     asset_allocation: dict[str, float] = Field(default_factory=dict)

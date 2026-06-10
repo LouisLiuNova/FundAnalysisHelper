@@ -20,6 +20,9 @@ redis:
 tushare:
   token: "${TUSHARE_TOKEN}"
 
+datasource:
+  type: "composite"  # "composite" | "tushare" | "akshare" — which data provider(s) to use
+
 server:
   host: "0.0.0.0"
   port: 8000
