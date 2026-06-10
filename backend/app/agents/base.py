@@ -89,7 +89,16 @@ class BaseAgent:
                         )
                     )
                     continue
-                result = await tool_fn.ainvoke(tool_call["args"])
+                try:
+                    result = await tool_fn.ainvoke(tool_call["args"])
+                except Exception as e:
+                    messages.append(
+                        ToolMessage(
+                            content=f"Error executing tool '{tool_call['name']}': {e}",
+                            tool_call_id=tool_call["id"],
+                        )
+                    )
+                    continue
                 messages.append(
                     ToolMessage(content=str(result), tool_call_id=tool_call["id"])
                 )
