@@ -1,4 +1,6 @@
-from langchain_core.messages import HumanMessage, SystemMessage
+from collections.abc import Callable
+
+from langchain_core.messages import AIMessage, HumanMessage, SystemMessage, ToolMessage
 from langchain_openai import ChatOpenAI
 
 
@@ -32,4 +34,57 @@ class BaseAgent:
 
         messages.append(HumanMessage(content=user_message))
         response = await self._llm.ainvoke(messages)
+        return response.content
+
+    async def run_with_tools(
+        self,
+        user_message: str,
+        tools: list[Callable],
+        context: dict | None = None,
+        max_rounds: int = 3,
+    ) -> str:
+        """Run a ReAct tool-calling loop.
+
+        The LLM iteratively decides whether to call tools or produce a final
+        answer. The loop terminates when the LLM returns a response without
+        ``tool_calls`` or when *max_rounds* is reached.
+
+        Args:
+            user_message: The user's input message.
+            tools: List of LangChain ``@tool``-decorated functions.
+            context: Optional data context appended to the user message.
+            max_rounds: Maximum tool-calling iterations (default 3).
+
+        Returns:
+            The final response content from the LLM.
+        """
+        messages: list[SystemMessage | HumanMessage | AIMessage | ToolMessage] = [
+            SystemMessage(content=self.system_prompt),
+        ]
+
+        if context:
+            ctx_str = "\n\n## 数据上下文\n" + "\n".join(f"- {k}: {v}" for k, v in context.items())
+            user_message = user_message + ctx_str
+
+        messages.append(HumanMessage(content=user_message))
+
+        llm_with_tools = self._llm.bind_tools(tools)
+
+        for _round in range(max_rounds):
+            response = await llm_with_tools.ainvoke(messages)
+            messages.append(response)
+
+            if not hasattr(response, "tool_calls") or not response.tool_calls:
+                return response.content
+
+            # Execute tool calls
+            tool_map = {t.name: t for t in tools}
+            for tool_call in response.tool_calls:
+                tool_fn = tool_map[tool_call["name"]]
+                result = await tool_fn.ainvoke(tool_call["args"])
+                messages.append(
+                    ToolMessage(content=str(result), tool_call_id=tool_call["id"])
+                )
+
+        # max_rounds reached without a final answer — return the last response
         return response.content

@@ -52,6 +52,7 @@ async def analyst_node(state: GraphState, analyst_type: str) -> dict:
     from app.agents.analysts.sector import SectorAnalyst
     from app.agents.analysts.sentiment import SentimentAnalyst
     from app.agents.analysts.technical import TechnicalAnalyst
+    from app.agents.tools import get_tools_for_agent
 
     config = get_config()
     classes = {
@@ -69,10 +70,17 @@ async def analyst_node(state: GraphState, analyst_type: str) -> dict:
         base_url=config.llm.base_url,
         api_key=config.llm.api_key,
     )
-    result = await agent.analyze(
-        fund_code=state["fund_code"],
-        fund_name=state.get("fund_name", ""),
-        data=state.get("fund_data", {}),
+
+    fund_name = state.get("fund_name", "")
+    fund_code = state["fund_code"]
+    message = f"请对基金 {fund_name}（{fund_code}）进行{analyst_type}分析。"
+
+    tools = get_tools_for_agent(analyst_type)
+    result = await agent.run_with_tools(
+        user_message=message,
+        tools=tools,
+        context=state.get("fund_data", {}),
+        max_rounds=3,
     )
     return {"analyst_reports": {analyst_type: result}}
 
