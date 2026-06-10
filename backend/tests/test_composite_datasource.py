@@ -16,6 +16,8 @@ def composite():
     primary.get_fund_manager = AsyncMock()
     primary.get_fund_portfolio = AsyncMock()
     primary.get_macro = AsyncMock()
+    primary.get_fund_portfolio_industry_allocation = AsyncMock()
+    primary.get_fund_announcements = AsyncMock()
     primary.close = AsyncMock()
 
     fallback = MagicMock()
@@ -24,6 +26,8 @@ def composite():
     fallback.get_fund_manager = AsyncMock()
     fallback.get_fund_portfolio = AsyncMock()
     fallback.get_macro = AsyncMock()
+    fallback.get_fund_portfolio_industry_allocation = AsyncMock()
+    fallback.get_fund_announcements = AsyncMock()
     fallback.close = AsyncMock()
 
     ds = CompositeDataSource(primary=primary, fallback=fallback)
@@ -227,6 +231,97 @@ async def test_get_fund_portfolio_akshare_empty_fallback_used(composite):
 
 
 @pytest.mark.asyncio
+@pytest.mark.asyncio
+async def test_get_portfolio_industry_allocation_primary_succeeds(composite):
+    """When AKshare returns industry allocation data, use it and skip fallback."""
+    ds, primary, fallback = composite
+
+    primary.get_fund_portfolio_industry_allocation.return_value = [
+        {"行业类别": "制造业", "占净值比例": 35.5},
+        {"行业类别": "金融业", "占净值比例": 20.1},
+    ]
+
+    result = await ds.get_fund_portfolio_industry_allocation("000001")
+    assert len(result) == 2
+    assert result[0]["行业类别"] == "制造业"
+    assert result[0]["占净值比例"] == 35.5
+    fallback.get_fund_portfolio_industry_allocation.assert_not_called()
+
+
+@pytest.mark.asyncio
+async def test_get_portfolio_industry_allocation_primary_fails_fallback(composite):
+    """When AKshare raises, fallback returns data."""
+    ds, primary, fallback = composite
+
+    primary.get_fund_portfolio_industry_allocation.side_effect = RuntimeError(
+        "network error"
+    )
+    fallback.get_fund_portfolio_industry_allocation.return_value = [
+        {"行业类别": "信息技术", "占净值比例": 15.3},
+    ]
+
+    result = await ds.get_fund_portfolio_industry_allocation("000001")
+    assert len(result) == 1
+    assert result[0]["行业类别"] == "信息技术"
+
+
+@pytest.mark.asyncio
+async def test_get_portfolio_industry_allocation_both_fail(composite):
+    """When both sources fail, return empty list."""
+    ds, primary, fallback = composite
+
+    primary.get_fund_portfolio_industry_allocation.side_effect = RuntimeError("fail")
+    fallback.get_fund_portfolio_industry_allocation.side_effect = RuntimeError(
+        "fail too"
+    )
+
+    result = await ds.get_fund_portfolio_industry_allocation("000001")
+    assert result == []
+
+
+@pytest.mark.asyncio
+async def test_get_announcements_primary_succeeds(composite):
+    """When AKshare returns announcements, use it and skip fallback."""
+    ds, primary, fallback = composite
+
+    primary.get_fund_announcements.return_value = [
+        {"报告名称": "2025年年度报告", "报告日期": "2025-03-28"},
+    ]
+
+    result = await ds.get_fund_announcements("000001")
+    assert len(result) == 1
+    assert result[0]["报告名称"] == "2025年年度报告"
+    assert result[0]["报告日期"] == "2025-03-28"
+    fallback.get_fund_announcements.assert_not_called()
+
+
+@pytest.mark.asyncio
+async def test_get_announcements_primary_fails_fallback(composite):
+    """When AKshare raises, fallback returns data."""
+    ds, primary, fallback = composite
+
+    primary.get_fund_announcements.side_effect = RuntimeError("network error")
+    fallback.get_fund_announcements.return_value = [
+        {"报告名称": "2025年第四季度报告", "报告日期": "2025-01-20"},
+    ]
+
+    result = await ds.get_fund_announcements("000001")
+    assert len(result) == 1
+    assert result[0]["报告名称"] == "2025年第四季度报告"
+
+
+@pytest.mark.asyncio
+async def test_get_announcements_both_fail(composite):
+    """When both sources fail, return empty list."""
+    ds, primary, fallback = composite
+
+    primary.get_fund_announcements.side_effect = RuntimeError("fail")
+    fallback.get_fund_announcements.side_effect = RuntimeError("fail too")
+
+    result = await ds.get_fund_announcements("000001")
+    assert result == []
+
+
 async def test_get_macro_primary_then_fallback(composite):
     """AKshare primary for macro, Tushare fallback."""
     ds, primary, fallback = composite
