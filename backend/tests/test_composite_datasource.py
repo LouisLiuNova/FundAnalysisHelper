@@ -231,7 +231,6 @@ async def test_get_fund_portfolio_akshare_empty_fallback_used(composite):
 
 
 @pytest.mark.asyncio
-@pytest.mark.asyncio
 async def test_get_portfolio_industry_allocation_primary_succeeds(composite):
     """When AKshare returns industry allocation data, use it and skip fallback."""
     ds, primary, fallback = composite
