@@ -69,18 +69,26 @@ class BaseAgent:
         messages.append(HumanMessage(content=user_message))
 
         llm_with_tools = self._llm.bind_tools(tools)
+        tool_map = {t.name: t for t in tools}
 
         for _round in range(max_rounds):
             response = await llm_with_tools.ainvoke(messages)
             messages.append(response)
 
-            if not hasattr(response, "tool_calls") or not response.tool_calls:
+            if not response.tool_calls:
                 return response.content
 
             # Execute tool calls
-            tool_map = {t.name: t for t in tools}
             for tool_call in response.tool_calls:
-                tool_fn = tool_map[tool_call["name"]]
+                tool_fn = tool_map.get(tool_call["name"])
+                if tool_fn is None:
+                    messages.append(
+                        ToolMessage(
+                            content=f"Error: unknown tool '{tool_call['name']}'",
+                            tool_call_id=tool_call["id"],
+                        )
+                    )
+                    continue
                 result = await tool_fn.ainvoke(tool_call["args"])
                 messages.append(
                     ToolMessage(content=str(result), tool_call_id=tool_call["id"])
