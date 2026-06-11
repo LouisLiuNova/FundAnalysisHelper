@@ -178,9 +178,10 @@ async def test_run_with_tools_max_rounds_达到最大轮数停止():
         max_rounds=2,
     )
 
-    # Should return "Thinking..." (the last response content) after 2 rounds
+    # Both rounds return tool_calls — never a final answer within the loop.
+    # The post-loop guard does one more LLM call, so total is max_rounds + 1 = 3.
     assert "Thinking..." in result
-    assert mock_bound.ainvoke.call_count == 2
+    assert mock_bound.ainvoke.call_count == 3
 
 
 @pytest.mark.asyncio

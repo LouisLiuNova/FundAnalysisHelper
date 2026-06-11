@@ -1,4 +1,5 @@
 from collections.abc import Callable
+import asyncio
 
 from langchain_core.messages import AIMessage, HumanMessage, SystemMessage, ToolMessage
 from langchain_openai import ChatOpenAI
@@ -71,6 +72,8 @@ class BaseAgent:
         llm_with_tools = self._llm.bind_tools(tools)
         tool_map = {t.name: t for t in tools}
 
+        response = None
+
         for _round in range(max_rounds):
             response = await llm_with_tools.ainvoke(messages)
             messages.append(response)
@@ -78,30 +81,44 @@ class BaseAgent:
             if not response.tool_calls:
                 return response.content
 
-            # Execute tool calls
-            for tool_call in response.tool_calls:
-                tool_fn = tool_map.get(tool_call["name"])
-                if tool_fn is None:
-                    messages.append(
-                        ToolMessage(
-                            content=f"Error: unknown tool '{tool_call['name']}'",
-                            tool_call_id=tool_call["id"],
-                        )
-                    )
-                    continue
+            # Execute tool calls (independent calls run in parallel).
+            async def _invoke_one(tc: dict) -> ToolMessage:
                 try:
-                    result = await tool_fn.ainvoke(tool_call["args"])
-                except Exception as e:
-                    messages.append(
-                        ToolMessage(
-                            content=f"Error executing tool '{tool_call['name']}': {e}",
-                            tool_call_id=tool_call["id"],
-                        )
+                    tool_name = tc["name"]
+                    tool_id = tc["id"]
+                except (KeyError, TypeError) as e:
+                    return ToolMessage(
+                        content=f"Error: malformed tool_call from LLM: {e}",
+                        tool_call_id="unknown",
                     )
-                    continue
-                messages.append(
-                    ToolMessage(content=str(result), tool_call_id=tool_call["id"])
-                )
 
-        # max_rounds reached without a final answer — return the last response
+                tool_fn = tool_map.get(tool_name)
+                if tool_fn is None:
+                    return ToolMessage(
+                        content=f"Error: unknown tool '{tool_name}'",
+                        tool_call_id=tool_id,
+                    )
+                try:
+                    result = await tool_fn.ainvoke(tc["args"])
+                    return ToolMessage(content=str(result), tool_call_id=tool_id)
+                except Exception as e:
+                    return ToolMessage(
+                        content=f"Error executing tool '{tool_name}': {e}",
+                        tool_call_id=tool_id,
+                    )
+
+            tool_messages = await asyncio.gather(
+                *[_invoke_one(tc) for tc in response.tool_calls]
+            )
+            messages.extend(tool_messages)
+
+        if response is None:
+            return ""
+
+        # max_rounds reached — do one final LLM call if the last response
+        # still has pending tool calls, so the caller gets a final answer
+        # instead of intermediate reasoning text.
+        if response.tool_calls:
+            response = await llm_with_tools.ainvoke(messages)
+
         return response.content

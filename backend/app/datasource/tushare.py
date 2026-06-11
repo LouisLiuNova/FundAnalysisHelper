@@ -94,7 +94,30 @@ class TushareAdapter(BaseDataSource):
             df = self._pro.fund_portfolio(ts_code=code)
             if df.empty:
                 return empty
-            return {"fund_code": code, "report_date": ""}
+
+            report_date = ""
+            if "end_date" in df.columns:
+                report_date = str(df.iloc[0]["end_date"])
+
+            stocks: list[dict] = []
+            for _, row in df.iterrows():
+                stocks.append(
+                    {
+                        "stock_code": str(row.get("symbol", "")),
+                        "stock_name": str(row.get("name", row.get("symbol", ""))),
+                        "weight_pct": float(row.get("stk_mkv_ratio", 0) or 0),
+                        "shares": float(row["amount"]) if row.get("amount") else None,
+                        "market_value": float(row["mkv"]) if row.get("mkv") else None,
+                    }
+                )
+
+            return {
+                "fund_code": code,
+                "report_date": report_date,
+                "top_10_stocks": stocks,
+                "sector_allocation": {},
+                "asset_allocation": {},
+            }
 
         key = f"portfolio:{code}"
         data = await self._cached(key, fetch, ttl=86400)

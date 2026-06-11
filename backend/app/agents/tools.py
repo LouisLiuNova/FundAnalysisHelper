@@ -17,6 +17,24 @@ if TYPE_CHECKING:
 from app.graph.workflow import get_datasource
 
 # ---------------------------------------------------------------------------
+# Internal helpers
+# ---------------------------------------------------------------------------
+
+
+def _to_json(data: object) -> str:
+    """Serialize *data* to a JSON string, auto-unwrapping Pydantic models."""
+    if hasattr(data, "model_dump"):
+        data = data.model_dump()
+    elif isinstance(data, list):
+        data = [r.model_dump() if hasattr(r, "model_dump") else r for r in data]
+    return json.dumps(data, ensure_ascii=False, default=str)
+
+
+def _tool_error(description: str, exc: Exception) -> str:
+    """Return a JSON error envelope for tool failures."""
+    return json.dumps({"error": f"{description}: {str(exc)}"}, ensure_ascii=False)
+
+# ---------------------------------------------------------------------------
 # Tool definitions
 # ---------------------------------------------------------------------------
 
@@ -37,13 +55,9 @@ async def get_fund_nav_detail(code: str, days: int = 365) -> str:
     try:
         ds = get_datasource()
         records = await ds.get_fund_nav(code, days=days)
-        return json.dumps(
-            [r.model_dump() if hasattr(r, "model_dump") else r for r in records],
-            ensure_ascii=False,
-            default=str,
-        )
+        return _to_json(records)
     except Exception as e:
-        return json.dumps({"error": f"获取净值数据失败: {str(e)}"}, ensure_ascii=False)
+        return _tool_error("获取净值数据失败", e)
 
 
 @tool
@@ -62,13 +76,9 @@ async def get_fund_portfolio(code: str) -> str:
     try:
         ds = get_datasource()
         portfolio = await ds.get_fund_portfolio(code)
-        return json.dumps(
-            portfolio.model_dump() if hasattr(portfolio, "model_dump") else portfolio,
-            ensure_ascii=False,
-            default=str,
-        )
+        return _to_json(portfolio)
     except Exception as e:
-        return json.dumps({"error": f"获取持仓数据失败: {str(e)}"}, ensure_ascii=False)
+        return _tool_error("获取持仓数据失败", e)
 
 
 @tool
@@ -86,9 +96,9 @@ async def get_sector_allocation(code: str) -> str:
     try:
         ds = get_datasource()
         records = await ds.get_fund_portfolio_industry_allocation(code)
-        return json.dumps(records, ensure_ascii=False, default=str)
+        return _to_json(records)
     except Exception as e:
-        return json.dumps({"error": f"获取行业配置数据失败: {str(e)}"}, ensure_ascii=False)
+        return _tool_error("获取行业配置数据失败", e)
 
 
 @tool
@@ -107,13 +117,9 @@ async def get_fund_manager(code: str) -> str:
     try:
         ds = get_datasource()
         info = await ds.get_fund_manager(code)
-        return json.dumps(
-            info.model_dump() if hasattr(info, "model_dump") else info,
-            ensure_ascii=False,
-            default=str,
-        )
+        return _to_json(info)
     except Exception as e:
-        return json.dumps({"error": f"获取基金经理数据失败: {str(e)}"}, ensure_ascii=False)
+        return _tool_error("获取基金经理数据失败", e)
 
 
 @tool
@@ -131,9 +137,9 @@ async def get_macro_cpi() -> str:
     try:
         ds = get_datasource()
         data = await ds.get_macro("cpi")
-        return json.dumps(data, ensure_ascii=False, default=str)
+        return _to_json(data)
     except Exception as e:
-        return json.dumps({"error": f"获取CPI数据失败: {str(e)}"}, ensure_ascii=False)
+        return _tool_error("获取CPI数据失败", e)
 
 
 @tool
@@ -151,9 +157,9 @@ async def get_macro_gdp() -> str:
     try:
         ds = get_datasource()
         data = await ds.get_macro("gdp")
-        return json.dumps(data, ensure_ascii=False, default=str)
+        return _to_json(data)
     except Exception as e:
-        return json.dumps({"error": f"获取GDP数据失败: {str(e)}"}, ensure_ascii=False)
+        return _tool_error("获取GDP数据失败", e)
 
 
 @tool
@@ -172,9 +178,9 @@ async def get_fund_announcements(code: str, limit: int = 5) -> str:
     try:
         ds = get_datasource()
         records = await ds.get_fund_announcements(code, limit=limit)
-        return json.dumps(records, ensure_ascii=False, default=str)
+        return _to_json(records)
     except Exception as e:
-        return json.dumps({"error": f"获取基金公告数据失败: {str(e)}"}, ensure_ascii=False)
+        return _tool_error("获取基金公告数据失败", e)
 
 
 # ---------------------------------------------------------------------------
@@ -203,15 +209,13 @@ AGENT_TOOL_GROUPS: dict[str, list[str]] = {
     "macro": ["general", "macro"],
 }
 
-# All tool functions keyed by name for programmatic lookup
+# All tool functions keyed by name for programmatic lookup.
+# Built from the module globals so a new @tool is automatically included
+# as long as it is defined at module scope.
 _all_tools: dict[str, Callable[..., Any]] = {
-    "get_fund_nav_detail": get_fund_nav_detail,
-    "get_fund_portfolio": get_fund_portfolio,
-    "get_sector_allocation": get_sector_allocation,
-    "get_fund_manager": get_fund_manager,
-    "get_macro_cpi": get_macro_cpi,
-    "get_macro_gdp": get_macro_gdp,
-    "get_fund_announcements": get_fund_announcements,
+    v.name: v
+    for v in globals().values()
+    if hasattr(v, "name") and hasattr(v, "ainvoke")
 }
 
 
@@ -236,11 +240,6 @@ def get_tools_for_agent(agent_type: str) -> list[Callable[..., Any]]:
         tool_names.extend(TOOL_GROUPS[group_name])
 
     # Deduplicate while preserving order.
-    seen: set[str] = set()
-    unique_tool_names: list[str] = []
-    for name in tool_names:
-        if name not in seen:
-            seen.add(name)
-            unique_tool_names.append(name)
+    unique_tool_names = list(dict.fromkeys(tool_names))
 
     return [_all_tools[name] for name in unique_tool_names]

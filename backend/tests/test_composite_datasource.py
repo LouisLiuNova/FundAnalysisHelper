@@ -244,7 +244,8 @@ async def test_get_portfolio_industry_allocation_primary_succeeds(composite):
     assert len(result) == 2
     assert result[0]["行业类别"] == "制造业"
     assert result[0]["占净值比例"] == 35.5
-    fallback.get_fund_portfolio_industry_allocation.assert_not_called()
+    # With parallel execution, fallback is launched concurrently — but the
+    # primary result is preferred and the fallback result is discarded.
 
 
 @pytest.mark.asyncio
@@ -291,7 +292,8 @@ async def test_get_announcements_primary_succeeds(composite):
     assert len(result) == 1
     assert result[0]["报告名称"] == "2025年年度报告"
     assert result[0]["报告日期"] == "2025-03-28"
-    fallback.get_fund_announcements.assert_not_called()
+    # With parallel execution, fallback is launched concurrently — but the
+    # primary result is preferred and the fallback result is discarded.
 
 
 @pytest.mark.asyncio

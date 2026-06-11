@@ -73,7 +73,18 @@ async def analyst_node(state: GraphState, analyst_type: str) -> dict:
 
     fund_name = state.get("fund_name", "")
     fund_code = state["fund_code"]
-    message = f"请对基金 {fund_name}（{fund_code}）进行{analyst_type}分析。"
+
+    analyst_type_cn = {
+        "fundamental": "基本面",
+        "technical": "技术面",
+        "sector": "行业配置",
+        "manager": "基金经理",
+        "sentiment": "市场情绪",
+        "news": "相关新闻与公告",
+        "macro": "宏观经济",
+    }.get(analyst_type, analyst_type)
+
+    message = f"请对基金 {fund_name}（{fund_code}）进行{analyst_type_cn}分析。"
 
     tools = get_tools_for_agent(analyst_type)
     result = await agent.run_with_tools(
@@ -204,12 +215,14 @@ def compile_workflow() -> CompiledStateGraph:
     builder.add_node("cio", cio_node)
     builder.add_node("reporter", reporter_node)
 
+    def _create_analyst_node(analyst_type: str):
+        async def node(state: GraphState) -> dict:
+            return await analyst_node(state, analyst_type)
+
+        return node
+
     for name in ANALYST_NAMES:
-
-        async def make_analyst(state: GraphState, name: str = name) -> dict:
-            return await analyst_node(state, name)
-
-        builder.add_node(f"analyst_{name}", make_analyst)
+        builder.add_node(f"analyst_{name}", _create_analyst_node(name))
 
     builder.add_edge(START, "fetch_data")
 
