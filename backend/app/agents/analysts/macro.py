@@ -13,6 +13,4 @@ class MacroAnalyst(BaseAgent):
             **kwargs,
         )
 
-    async def analyze(self, fund_code: str, fund_name: str, data: dict) -> str:
-        message = f"请对基金 {fund_name}（{fund_code}）进行宏观经济环境分析。"
-        return await self.invoke(message, context=data)
+    # analyze() removed — analyst_node calls run_with_tools() directly
