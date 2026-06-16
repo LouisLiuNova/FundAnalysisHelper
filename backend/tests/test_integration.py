@@ -38,6 +38,13 @@ async def test_full_workflow_端到端全流程验证():
     with patch("app.agents.base.ChatOpenAI") as mock_llm_cls:
         mock_llm = AsyncMock()
         mock_llm.ainvoke = AsyncMock(return_value=mock_llm_response)
+
+        # Mock bind_tools() to return an object whose ainvoke returns
+        # a response with no tool_calls (so the ReAct loop exits immediately).
+        mock_bound = AsyncMock()
+        mock_bound.ainvoke = AsyncMock(return_value=mock_llm_response)
+        mock_llm.bind_tools = MagicMock(return_value=mock_bound)
+
         mock_llm_cls.return_value = mock_llm
 
         graph = compile_workflow()

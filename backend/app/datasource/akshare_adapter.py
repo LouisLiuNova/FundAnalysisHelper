@@ -188,8 +188,11 @@ class AKshareAdapter(BaseDataSource):
         def fetch() -> dict:
             from datetime import datetime
 
-            current_year = str(datetime.now().year)
-            df = ak.fund_portfolio_hold_em(symbol=code6, date=current_year)
+            current_year = datetime.now().year
+            df = ak.fund_portfolio_hold_em(symbol=code6, date=str(current_year))
+            if (df is None or df.empty) and current_year > 2020:
+                # Fall back to previous year (new year data may not be published yet).
+                df = ak.fund_portfolio_hold_em(symbol=code6, date=str(current_year - 1))
             if df is None or df.empty:
                 return {
                     "fund_code": code,
@@ -244,6 +247,37 @@ class AKshareAdapter(BaseDataSource):
             return json.loads(df.head(100).to_json(orient="records"))
 
         return await self._cached(cache_key, fetch, ttl=86400)
+
+    async def get_fund_portfolio_industry_allocation(self, code: str) -> list[dict]:
+        code6 = _normalise_code(code)
+
+        def fetch() -> list[dict]:
+            from datetime import datetime
+
+            current_year = datetime.now().year
+            df = ak.fund_portfolio_industry_allocation_em(symbol=code6, date=str(current_year))
+            if (df is None or df.empty) and current_year > 2020:
+                # Fall back to previous year (new year data may not be published yet).
+                df = ak.fund_portfolio_industry_allocation_em(symbol=code6, date=str(current_year - 1))
+            if df is None or df.empty:
+                return []
+            return df.to_dict(orient="records")
+
+        key = f"ak:industry_allocation:{code}"
+        return await self._cached(key, fetch, ttl=86400)
+
+    async def get_fund_announcements(self, code: str, limit: int = 5) -> list[dict]:
+        code6 = _normalise_code(code)
+
+        def fetch() -> list[dict]:
+            df = ak.fund_announcement_report_em(symbol=code6)
+            if df is None or df.empty:
+                return []
+            return df.to_dict(orient="records")
+
+        key = f"ak:announcements:{code}"
+        records = await self._cached(key, fetch, ttl=3600)
+        return records[:limit]
 
     async def close(self) -> None:
         if self._cache is not None:

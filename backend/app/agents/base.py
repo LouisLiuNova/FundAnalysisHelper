@@ -1,4 +1,7 @@
-from langchain_core.messages import HumanMessage, SystemMessage
+from collections.abc import Callable
+import asyncio
+
+from langchain_core.messages import AIMessage, HumanMessage, SystemMessage, ToolMessage
 from langchain_openai import ChatOpenAI
 
 
@@ -32,4 +35,90 @@ class BaseAgent:
 
         messages.append(HumanMessage(content=user_message))
         response = await self._llm.ainvoke(messages)
+        return response.content
+
+    async def run_with_tools(
+        self,
+        user_message: str,
+        tools: list[Callable],
+        context: dict | None = None,
+        max_rounds: int = 3,
+    ) -> str:
+        """Run a ReAct tool-calling loop.
+
+        The LLM iteratively decides whether to call tools or produce a final
+        answer. The loop terminates when the LLM returns a response without
+        ``tool_calls`` or when *max_rounds* is reached.
+
+        Args:
+            user_message: The user's input message.
+            tools: List of LangChain ``@tool``-decorated functions.
+            context: Optional data context appended to the user message.
+            max_rounds: Maximum tool-calling iterations (default 3).
+
+        Returns:
+            The final response content from the LLM.
+        """
+        messages: list[SystemMessage | HumanMessage | AIMessage | ToolMessage] = [
+            SystemMessage(content=self.system_prompt),
+        ]
+
+        if context:
+            ctx_str = "\n\n## 数据上下文\n" + "\n".join(f"- {k}: {v}" for k, v in context.items())
+            user_message = user_message + ctx_str
+
+        messages.append(HumanMessage(content=user_message))
+
+        llm_with_tools = self._llm.bind_tools(tools)
+        tool_map = {t.name: t for t in tools}
+
+        response = None
+
+        for _round in range(max_rounds):
+            response = await llm_with_tools.ainvoke(messages)
+            messages.append(response)
+
+            if not response.tool_calls:
+                return response.content
+
+            # Execute tool calls (independent calls run in parallel).
+            async def _invoke_one(tc: dict) -> ToolMessage:
+                try:
+                    tool_name = tc["name"]
+                    tool_id = tc["id"]
+                except (KeyError, TypeError) as e:
+                    return ToolMessage(
+                        content=f"Error: malformed tool_call from LLM: {e}",
+                        tool_call_id="unknown",
+                    )
+
+                tool_fn = tool_map.get(tool_name)
+                if tool_fn is None:
+                    return ToolMessage(
+                        content=f"Error: unknown tool '{tool_name}'",
+                        tool_call_id=tool_id,
+                    )
+                try:
+                    result = await tool_fn.ainvoke(tc["args"])
+                    return ToolMessage(content=str(result), tool_call_id=tool_id)
+                except Exception as e:
+                    return ToolMessage(
+                        content=f"Error executing tool '{tool_name}': {e}",
+                        tool_call_id=tool_id,
+                    )
+
+            tool_messages = await asyncio.gather(
+                *[_invoke_one(tc) for tc in response.tool_calls]
+            )
+            messages.extend(tool_messages)
+
+        if response is None:
+            return ""
+
+        # max_rounds reached — do one final LLM call if the last response
+        # still has pending tool calls, so the caller gets a final answer
+        # instead of intermediate reasoning text.
+        if response.tool_calls:
+            response = await llm_with_tools.ainvoke(messages)
+
         return response.content

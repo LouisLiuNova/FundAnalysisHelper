@@ -271,6 +271,131 @@ async def test_get_macro_unsupported_indicator(akshare_adapter):
 
 
 @pytest.mark.asyncio
+async def test_get_fund_portfolio_industry_allocation(akshare_adapter):
+    """Verify industry allocation data is fetched and returned as list[dict]."""
+    adapter, cache = akshare_adapter
+
+    mock_df = pd.DataFrame(
+        {
+            "行业类别": ["制造业", "金融业", "信息技术"],
+            "占净值比例": [35.5, 20.1, 15.3],
+            "市值": [35000000.0, 20000000.0, 15000000.0],
+        }
+    )
+
+    with patch(
+        "app.datasource.akshare_adapter.ak.fund_portfolio_industry_allocation_em",
+        return_value=mock_df,
+    ) as mock_api:
+        result = await adapter.get_fund_portfolio_industry_allocation("000001")
+
+    mock_api.assert_called_once_with(symbol="000001", date="2026")
+    assert isinstance(result, list)
+    assert len(result) == 3
+    assert result[0]["行业类别"] == "制造业"
+    assert result[0]["占净值比例"] == 35.5
+    assert result[0]["市值"] == 35000000.0
+
+
+@pytest.mark.asyncio
+async def test_get_fund_portfolio_industry_allocation_empty(akshare_adapter):
+    """Verify empty industry allocation data returns empty list."""
+    adapter, cache = akshare_adapter
+
+    empty_df = pd.DataFrame(columns=["行业类别", "占净值比例", "市值"])
+
+    with patch(
+        "app.datasource.akshare_adapter.ak.fund_portfolio_industry_allocation_em",
+        return_value=empty_df,
+    ):
+        result = await adapter.get_fund_portfolio_industry_allocation("000001")
+
+    assert result == []
+
+
+@pytest.mark.asyncio
+async def test_get_fund_announcements(akshare_adapter):
+    """Verify announcement data is fetched and returned as list[dict]."""
+    adapter, cache = akshare_adapter
+
+    mock_df = pd.DataFrame(
+        {
+            "报告名称": ["2025年年度报告", "2025年第四季度报告", "2025年第三季度报告"],
+            "报告日期": ["2025-03-28", "2025-01-20", "2024-10-25"],
+            "公告类型": ["年报", "季报", "季报"],
+        }
+    )
+
+    with patch(
+        "app.datasource.akshare_adapter.ak.fund_announcement_report_em",
+        return_value=mock_df,
+    ) as mock_api:
+        result = await adapter.get_fund_announcements("000001")
+
+    mock_api.assert_called_once_with(symbol="000001")
+    assert isinstance(result, list)
+    assert len(result) == 3
+    assert result[0]["报告名称"] == "2025年年度报告"
+    assert result[0]["报告日期"] == "2025-03-28"
+
+
+@pytest.mark.asyncio
+async def test_get_fund_announcements_empty(akshare_adapter):
+    """Verify empty announcement data returns empty list."""
+    adapter, cache = akshare_adapter
+
+    empty_df = pd.DataFrame(columns=["报告名称", "报告日期"])
+
+    with patch(
+        "app.datasource.akshare_adapter.ak.fund_announcement_report_em",
+        return_value=empty_df,
+    ):
+        result = await adapter.get_fund_announcements("000001")
+
+    assert result == []
+
+
+@pytest.mark.asyncio
+async def test_get_fund_announcements_respects_limit(akshare_adapter):
+    """Verify limit param restricts number of announcements returned."""
+    adapter, cache = akshare_adapter
+
+    mock_df = pd.DataFrame(
+        {
+            "报告名称": [
+                "2025年年度报告",
+                "2025年第四季度报告",
+                "2025年第三季度报告",
+                "2025年第二季度报告",
+                "2025年第一季度报告",
+                "2024年年度报告",
+                "2024年第四季度报告",
+            ],
+            "报告日期": [
+                "2025-03-28",
+                "2025-01-20",
+                "2024-10-25",
+                "2024-07-20",
+                "2024-04-20",
+                "2024-03-28",
+                "2024-01-20",
+            ],
+        }
+    )
+
+    with patch(
+        "app.datasource.akshare_adapter.ak.fund_announcement_report_em",
+        return_value=mock_df,
+    ) as mock_api:
+        result = await adapter.get_fund_announcements("000001", limit=3)
+
+    mock_api.assert_called_once_with(symbol="000001")
+    assert len(result) == 3
+    assert result[0]["报告名称"] == "2025年年度报告"
+    assert result[2]["报告名称"] == "2025年第三季度报告"
+
+
+@pytest.mark.asyncio
 async def test_cache_hit_缓存命中时不调API(akshare_adapter):
     """Verify that a cache hit skips the AKShare API call."""
     adapter, cache = akshare_adapter

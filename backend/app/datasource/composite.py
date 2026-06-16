@@ -164,6 +164,46 @@ class CompositeDataSource(BaseDataSource):
             except Exception as exc:
                 logger.debug("Tushare macro fallback (%s) failed: %s", indicator, exc)
 
+        return {}
+
+    async def get_fund_portfolio_industry_allocation(self, code: str) -> list[dict]:
+        """AKshare primary; Tushare fallback.  Both run in parallel."""
+        akshare_task = asyncio.create_task(
+            self._try_industry_allocation_akshare(code)
+        )
+        tushare_task = None
+        if self._fallback is not None:
+            tushare_task = asyncio.create_task(
+                self._try_industry_allocation_tushare(code)
+            )
+
+        akshare_result = await akshare_task
+        tushare_result = await tushare_task if tushare_task else None
+
+        if akshare_result is not None:
+            return akshare_result
+        if tushare_result is not None:
+            return tushare_result
+        return []
+
+    async def get_fund_announcements(self, code: str, limit: int = 5) -> list[dict]:
+        """AKshare primary; Tushare fallback.  Both run in parallel."""
+        akshare_task = asyncio.create_task(
+            self._try_announcements_akshare(code, limit)
+        )
+        tushare_task = None
+        if self._fallback is not None:
+            tushare_task = asyncio.create_task(
+                self._try_announcements_tushare(code, limit)
+            )
+
+        akshare_result = await akshare_task
+        tushare_result = await tushare_task if tushare_task else None
+
+        if akshare_result is not None:
+            return akshare_result
+        if tushare_result is not None:
+            return tushare_result
         return []
 
     async def close(self) -> None:
@@ -201,4 +241,32 @@ class CompositeDataSource(BaseDataSource):
             return await self._fallback.get_fund_portfolio(code)  # type: ignore[union-attr]
         except Exception as exc:
             logger.debug("Tushare portfolio failed for %s: %s", code, exc)
+            return None
+
+    async def _try_industry_allocation_akshare(self, code: str) -> list[dict] | None:
+        try:
+            return await self._primary.get_fund_portfolio_industry_allocation(code)
+        except Exception as exc:
+            logger.debug("AKshare industry allocation failed for %s: %s", code, exc)
+            return None
+
+    async def _try_industry_allocation_tushare(self, code: str) -> list[dict] | None:
+        try:
+            return await self._fallback.get_fund_portfolio_industry_allocation(code)  # type: ignore[union-attr]
+        except Exception as exc:
+            logger.debug("Tushare industry allocation fallback failed for %s: %s", code, exc)
+            return None
+
+    async def _try_announcements_akshare(self, code: str, limit: int) -> list[dict] | None:
+        try:
+            return await self._primary.get_fund_announcements(code, limit=limit)
+        except Exception as exc:
+            logger.debug("AKshare announcements failed for %s: %s", code, exc)
+            return None
+
+    async def _try_announcements_tushare(self, code: str, limit: int) -> list[dict] | None:
+        try:
+            return await self._fallback.get_fund_announcements(code, limit=limit)  # type: ignore[union-attr]
+        except Exception as exc:
+            logger.debug("Tushare announcements fallback failed for %s: %s", code, exc)
             return None
